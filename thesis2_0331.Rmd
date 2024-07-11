@@ -1,0 +1,500 @@
+---
+title: "Thesis2"
+author: "Jinwoo Kim"
+date: "2024-03-31"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+rm(list = ls())
+```
+
+```{r}
+setwd("C:/Users/jinwo/nyudrive/NYU/2024_Spring/thesis2")
+getwd()
+
+#install.packages("haven")
+#install.packages("rlang")
+#install.packages("shiny")
+library("haven")
+library("rlang")
+library("shiny")
+library("haven")
+library("psych")
+library("tidyverse")
+
+
+#emergency dataset 
+h229e <- read_dta("C:/Users/jinwo/nyudrive/NYU/2024_Spring/thesis2/h229edta/H229E.dta")
+keep_h229e <- subset(h229e, select = c(DUPERSID, VSTCTGRY, PERWT21F))
+head(keep_h229e)
+
+```
+
+```{r}
+#h233 full data  
+h233 <- read_dta("C:\\Users\\jinwo\\nyudrive\\NYU\\2024_Spring\\thesis2\\h233dta\\h233.dta")
+
+keep_h233 <- subset(h233, select = c(DUPERSID, SEX, PERWT21F, POVLEV21, DOBYY,HIDEG, MARRY31X, FAMINC21, RACETHX, INSURC21, PMEDPY31,POVCAT21,INSCOV21, VARSTR, VARPSU, REGION21, BORNUSA, HWELLSPK, RTHLTH53,  MNHLTH53, ERTOT21, OBTOTV21,OBDRV21,OPTOTV21,OPDRV21, IPDIS21 )) #28336 
+
+```
+
+```{r}
+# Merge the datasets based on a common key, for example, 'participant_id'
+merged_data <- merge(keep_h233, keep_h229e, by = "DUPERSID", all.x = TRUE)
+head(merged_data) #29977
+
+```
+
+```{r}
+meps <- merged_data
+
+meps <- merged_data %>% 
+  dplyr::select(DUPERSID, SEX, PERWT21F.x, POVLEV21, DOBYY, HIDEG, MARRY31X, FAMINC21, RACETHX, INSURC21, VSTCTGRY,PMEDPY31, PERWT21F.y, POVCAT21, INSCOV21, VARPSU, VARSTR, REGION21, BORNUSA, HWELLSPK, RTHLTH53,  MNHLTH53, ERTOT21, OBTOTV21,OBDRV21,OPTOTV21,OPDRV21, IPDIS21) %>% 
+  dplyr::arrange(VSTCTGRY)
+
+table(meps$VSTCTGRY)
+
+```
+
+```{r}
+#change the variable name 
+meps$id <- meps$DUPERSID
+meps$sex <- meps$SEX
+meps$poverty <- meps$POVLEV21
+meps$dob <- meps$DOBYY
+meps$edu <- meps$HIDEG
+meps$marry <- meps$MARRY31X
+meps$income <- meps$FAMINC21
+meps$race <- meps$RACETHX
+meps$insurance <- meps$INSURC21
+meps$er <- meps$VSTCTGRY
+meps$insurance2 <- meps$PMEDPY31
+meps$income2 <- meps$POVCAT21
+meps$insurance3 <- meps$INSCOV21
+meps$region <- meps$REGION21
+meps$bornusa <- meps$BORNUSA
+meps$speakeng <- meps$HWELLSPK
+meps$health <- meps$RTHLTH53
+meps$mhealth <- meps$MNHLTH53
+meps$ervisit <- meps$ERTOT21
+meps$off_provider <- meps$OBTOTV21
+meps$off_physician <- meps$OBDRV21
+meps$out_provider <- meps$OPTOTV21
+meps$out_physician <- meps$OPDRV21
+meps$inpatient <- meps$IPDIS21
+
+```
+Recording 
+```{r}
+meps$age <- 2022 - meps$dob
+summary(meps$age)
+meps$age_group <- cut(meps$age, breaks = c(19, 44, 64, Inf), labels = c("18-44", "45-64", "65 and older"), include.lowest = TRUE)
+
+table(meps$age_group)
+
+```
+
+```{r}
+meps$er[is.na(meps$er)] <- 0
+table(meps$er) #ER yes = 3803 
+```
+
+```{r}
+meps$er[meps$er < 0] <- 0
+meps$er[meps$er > 0] <- 1
+table(meps$er)
+
+#final population is 7839 
+
+```
+
+```{r}
+meps <- meps %>% 
+  mutate(
+    sex = factor(case_when(
+      sex == 1 ~ "male",
+      sex == 2 ~ "female"
+    )),
+    age_group = factor(case_when(
+      age_group == "18-44" ~ "18-44",
+      age_group == "45-64" ~ "45-64",
+      age_group == "65 and older" ~ "65 and older"
+    )),
+    edu = factor(case_when(
+      edu %in% c(-8, -7) ~ NA,
+      edu %in% c(1,2,3) ~ "No College",
+      edu %in% c(4,5,6,7) ~ "Some College"
+    ),
+     levels = c("No College","Some College" )
+),
+    marry = factor(case_when(
+      marry == 1 ~ "married",
+      marry %in% c(-8, -7, -1, 2, 3, 4, 5, 6, 7, 8, 9, 10) ~ "unmarried"
+    )),
+    insurance2 = factor(case_when(
+      insurance2 == -1 ~ "None",
+      insurance2 %in% c(4, 5, 6, 7) ~ "others",
+      insurance2 == 1 ~ "Private Insurance",
+      insurance2 == 2 ~ "Medicare",
+      insurance2 == 3 ~ "Medicaid"
+    )),
+    insurance3 = factor(case_when(
+      insurance3 == 1 ~ "Private",
+      insurance3 == 2 ~ "Public",
+      insurance3 == 3 ~ "None",
+    ),
+      levels = c("Private", "Public", "None")
+),    
+    race = factor(case_when(
+      race == 1 ~ "Hispanic",
+      race == 2 ~ "White",
+      race == 3 ~ "Black",
+      race == 4 ~ "Asian",
+      race == 5 ~ "Others"
+    ),
+      levels = c("White", "Black", "Hispanic", "Asian", "Others")
+),
+    income2 = factor(case_when(
+      income2 == 1 ~ "Poor/Negative",
+      income2 == 2 ~ "Near Poor",
+      income2 == 3 ~ "Low income",
+      income2 == 4 ~ "Middle income",
+      income2 == 5 ~ "High income"
+    ),
+      levels = c("Poor/Negative", "Near Poor", "Low income", "Middle income", "High income")
+),
+      region = factor(case_when(
+      region == 1 ~ "Northeast",
+      region == 2 ~ "Midwest",
+      region == 3 ~ "South",
+      region == 4 ~ "West"
+    )),
+      bornusa = factor(case_when(
+      bornusa == 1 ~ "YES",
+      bornusa == 2 ~ "NO"
+    )),
+      speakeng = factor(case_when(
+      speakeng %in% c(1,2) ~ "Well",
+      speakeng %in% c(3,4) ~ "Not well",
+      speakeng == 5 ~ "N/A"
+      ),
+      levels = c("Well", "Not well", "N/A")
+), 
+      health = factor(case_when(
+      health %in% c(1,2,3) ~ "Good",
+      health %in% c(4,5) ~ "Poor",
+    ),
+      levels = c("Good", "Poor")
+),  
+      mhealth = factor(case_when(
+      mhealth %in% c(1,2,3) ~ "Good",
+      mhealth %in% c(4,5) ~ "Poor",
+    ),
+      levels = c("Good", "Poor")
+),
+    sex = relevel(sex, ref = "male"),
+  )
+
+```
+
+```{r}
+sub <- subset(meps, insurance3 == "None" & race == "Black")
+sub2 <- subset(sub, er == 1)
+table(sub2$income2)
+```
+
+#Subset 
+
+```{r}
+#only adults 
+meps <- meps %>% 
+  dplyr::filter(age > 18) #24324 
+```
+
+
+```{r}
+#subset rows for someone who has income level lower than 138%
+#lowincome_meps <- meps_adults %>% 
+#  dplyr::filter(poverty <= 138)
+#colnames(lowincome_meps)
+```
+
+
+```{r}
+table(meps$age_group)
+table(meps$insurance3)
+```
+
+```{r}
+#install.packages("gtsummary")
+library(gtsummary)
+
+Univariate <- meps %>% 
+  select(sex, age, age_group, edu, marry, insurance3, race, income2, region, bornusa, speakeng,health, mhealth,ervisit, off_provider,off_physician, out_provider, out_physician, inpatient, er    ) %>%
+  tbl_summary(
+  
+    statistic = list(all_categorical() ~ "{n} ({p}%)",
+                     all_continuous() ~ "{mean} ({sd})"),
+    type = list(
+                sex ~ "categorical",
+                age_group ~ "categorical",
+                age ~ "continuous",
+                marry ~ "categorical",
+                edu ~ "categorical",
+                insurance3 ~ "categorical",
+                income2 ~ "categorical",
+                race ~ "categorical",
+                region ~ "categorical",
+                bornusa ~ "categorical",
+                speakeng ~ "categorical",
+                health ~ "categorical",
+                mhealth ~ "categorical",
+                ervisit ~ "continuous",
+                off_provider ~ "continuous",
+                off_physician ~ "continuous",
+                out_provider ~ "continuous",
+                out_physician ~ "continuous",
+                inpatient ~ "continuous",
+                er ~ "categorical"),
+    label = list(
+                sex ~ "Sex",
+                age_group ~ "Age group",
+                age ~ "Age",
+                marry ~ "Marital Status",
+                edu ~ "Education",
+                insurance3 ~ "Insurance type",
+                income2 ~ "Family Income",
+                race ~ "Race",
+                er ~ "ER visits") 
+  ) %>%
+  bold_labels()
+Univariate
+
+```
+
+```{r}
+Bivariate_race <- meps %>% 
+  select(sex, age, age_group, edu, marry, insurance3, race, income2, region, bornusa, speakeng,health, mhealth,ervisit, off_provider,off_physician, out_provider, out_physician, inpatient, er    ) %>%
+  tbl_summary(
+  
+    statistic = list(all_categorical() ~ "{n} ({p}%)",
+                     all_continuous() ~ "{mean} ({sd})"),
+    by = race,
+
+    type = list(
+                sex ~ "categorical",
+                age_group ~ "categorical",
+                age ~ "continuous",
+                marry ~ "categorical",
+                edu ~ "categorical",
+                insurance3 ~ "categorical",
+                income2 ~ "categorical",
+                race ~ "categorical",
+                region ~ "categorical",
+                bornusa ~ "categorical",
+                speakeng ~ "categorical",
+                health ~ "categorical",
+                mhealth ~ "categorical",
+                ervisit ~ "continuous",
+                off_provider ~ "continuous",
+                off_physician ~ "continuous",
+                out_provider ~ "continuous",
+                out_physician ~ "continuous",
+                inpatient ~ "continuous",
+                er ~ "categorical"),
+    label = list(
+                sex ~ "Sex",
+                age_group ~ "Age group",
+                age ~ "Age",
+                marry ~ "Marital Status",
+                edu ~ "Education",
+                insurance3 ~ "Insurance type",
+                income2 ~ "Family Income",
+                race ~ "Race",
+                er ~ "ER visits") 
+  ) %>%
+  add_p (
+    test = list (
+      all_continuous() ~ "kruskal.test",
+      all_categorical() ~ "chisq.test"
+    ), 
+    pvalue_fun = ~ style_pvalue(.x, digits = 2)
+    ) %>% 
+  bold_p(t= 0.05) %>% 
+  add_n() %>%
+  bold_labels()
+
+Bivariate_race
+
+```
+
+```{r}
+Bivariate_er <- meps %>% 
+  select(sex, age, age_group, edu, marry, insurance3, race, income2, region, bornusa, speakeng,health, mhealth,ervisit, off_provider,off_physician, out_provider, out_physician, inpatient, er    ) %>%
+  tbl_summary(
+  
+    statistic = list(all_categorical() ~ "{n} ({p}%)",
+                     all_continuous() ~ "{mean} ({sd})"),
+    by = er,
+
+    type = list(
+                sex ~ "categorical",
+                age_group ~ "categorical",
+                age ~ "continuous",
+                marry ~ "categorical",
+                edu ~ "categorical",
+                insurance3 ~ "categorical",
+                income2 ~ "categorical",
+                race ~ "categorical",
+                region ~ "categorical",
+                bornusa ~ "categorical",
+                speakeng ~ "categorical",
+                health ~ "categorical",
+                mhealth ~ "categorical",
+                ervisit ~ "continuous",
+                off_provider ~ "continuous",
+                off_physician ~ "continuous",
+                out_provider ~ "continuous",
+                out_physician ~ "continuous",
+                inpatient ~ "continuous",
+                er ~ "categorical"),
+    label = list(
+                sex ~ "Sex",
+                age_group ~ "Age group",
+                age ~ "Age",
+                marry ~ "Marital Status",
+                edu ~ "Education",
+                insurance3 ~ "Insurance type",
+                income2 ~ "Family Income",
+                race ~ "Race",
+                er ~ "ER visits") 
+  ) %>%
+  add_p (
+    test = list (
+      all_continuous() ~ "wilcox.test",
+      all_categorical() ~ "chisq.test"
+    ), 
+    pvalue_fun = ~ style_pvalue(.x, digits = 2)
+    ) %>% 
+  bold_p(t= 0.05) %>% 
+  add_n() %>%
+  bold_labels()
+
+Bivariate_er
+
+```
+
+```{r}
+Bivariate_insur <- meps %>% 
+  select(sex, age, age_group, edu, marry, insurance3, race, income2, region, bornusa, speakeng,health, mhealth,ervisit, off_provider,off_physician, out_provider, out_physician, inpatient, er    ) %>%
+  tbl_summary(
+  
+    statistic = list(all_categorical() ~ "{n} ({p}%)",
+                     all_continuous() ~ "{mean} ({sd})"),
+    by = insurance3,
+
+    type = list(
+                sex ~ "categorical",
+                age_group ~ "categorical",
+                age ~ "continuous",
+                marry ~ "categorical",
+                edu ~ "categorical",
+                insurance3 ~ "categorical",
+                income2 ~ "categorical",
+                race ~ "categorical",
+                region ~ "categorical",
+                bornusa ~ "categorical",
+                speakeng ~ "categorical",
+                health ~ "categorical",
+                mhealth ~ "categorical",
+                ervisit ~ "continuous",
+                off_provider ~ "continuous",
+                off_physician ~ "continuous",
+                out_provider ~ "continuous",
+                out_physician ~ "continuous",
+                inpatient ~ "continuous",
+                er ~ "categorical"),
+    label = list(
+                sex ~ "Sex",
+                age_group ~ "Age group",
+                age ~ "Age",
+                marry ~ "Marital Status",
+                edu ~ "Education",
+                insurance3 ~ "Insurance type",
+                income2 ~ "Family Income",
+                race ~ "Race",
+                er ~ "ER visits") 
+  ) %>%
+  add_p (
+    test = list (
+      all_continuous() ~ "kruskal.test",
+      all_categorical() ~ "chisq.test"
+    ), 
+    pvalue_fun = ~ style_pvalue(.x, digits = 2)
+    ) %>% 
+  bold_p(t= 0.05) %>% 
+  add_n() %>%
+  bold_labels()
+
+Bivariate_insur
+
+```
+
+```{r}
+
+model0 <- glm(er ~ insurance3 + race , family = 'binomial',  data = meps)
+summary(model0)
+exp(coef(model0))
+
+model1 <- glm(er ~ insurance3 + race + sex + age_group + edu + marry + income2 + health + mhealth  , family = 'binomial', data = meps)
+summary(model1)
+exp(coef(model1))
+
+model2 <- glm(er ~ insurance3 + race + sex + age_group + edu + marry + income2 + health + mhealth + insurance3*race, family = 'binomial', data = meps)
+summary(model2)
+
+```
+
+
+```{r}
+tbl_merge(
+  
+  list(
+    
+    model0 %>%
+      tbl_regression(
+                     estimate_fun = function(x) round(exp(x), 2),
+                     pvalue_fun = purrr::partial(style_sigfig, digits = 3)) %>%
+      add_significance_stars(
+        pattern = "{estimate} ({conf.low}, {conf.high}){stars}",
+        hide_se = TRUE
+      ) %>%
+      bold_p(t = .05)  %>% bold_labels(),
+    
+    model1 %>%
+      tbl_regression(
+                     estimate_fun = function(x) round(exp(x), 2),
+                     pvalue_fun = purrr::partial(style_sigfig, digits = 3)) %>%
+      add_significance_stars(
+        pattern = "{estimate} ({conf.low}, {conf.high}){stars}",
+        hide_se = TRUE
+      ) %>%
+      bold_p(t = .05)  %>% bold_labels(),
+    
+    model2 %>%
+      tbl_regression(
+                     estimate_fun = function(x) round(exp(x), 2),
+                     pvalue_fun = purrr::partial(style_sigfig, digits = 3)) %>%
+      add_significance_stars(
+        pattern = "{estimate} ({conf.low}, {conf.high}){stars}",
+        hide_se = TRUE
+      ) %>%
+      bold_p(t = .05)  %>% bold_labels()
+  ))
+```
+
